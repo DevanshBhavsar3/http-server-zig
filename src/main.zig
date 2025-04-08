@@ -21,6 +21,12 @@ const Request = struct {
         self.header = fields.rest();
     }
 
+    pub fn getMethod(self: *Request) []const u8 {
+        var fields = std.mem.splitSequence(u8, self.requestLine, " ");
+
+        return fields.next().?;
+    }
+
     pub fn getRoute(self: *Request) []const u8 {
         var fields = std.mem.splitSequence(u8, self.requestLine, " ");
         _ = fields.next();
@@ -50,7 +56,7 @@ pub fn handleRequest(connection: std.net.Server.Connection) !void {
 
     try stdout.print("client connected!\n", .{});
 
-    var requestData: [128]u8 = undefined;
+    var requestData: [256]u8 = undefined;
     _ = try connection.stream.read(&requestData);
 
     var request = Request{};
@@ -59,7 +65,26 @@ pub fn handleRequest(connection: std.net.Server.Connection) !void {
     var response = Response{ .status = "", .headers = "", .body = "" };
 
     const route = request.getRoute();
+    const method = request.getMethod();
 
+    // POST Requests
+    if (std.mem.eql(u8, method, "POST")) {
+        const filename = route[7..];
+        const filepath = try getFilePath(filename);
+
+        const file = try std.fs.createFileAbsolute(filepath, .{});
+        defer file.close();
+
+        const length = try std.fmt.parseInt(usize, request.getHeader("Content-Length").?, 0);
+
+        try file.writeAll(request.body[0..length]);
+
+        response.status = "HTTP/1.1 201 Created";
+        try sendResponse(connection, response);
+        return;
+    }
+
+    // GET Requests
     if (std.mem.eql(u8, route, "/")) {
         response.status = "HTTP/1.1 200 OK";
     } else if (std.mem.startsWith(u8, route, "/echo")) {
@@ -78,19 +103,7 @@ pub fn handleRequest(connection: std.net.Server.Connection) !void {
         response.body = userAgent;
     } else if (std.mem.startsWith(u8, route, "/files")) {
         const filename = route[7..];
-
-        var args = try std.process.argsWithAllocator(allocator);
-        defer args.deinit();
-
-        var dirname: []u8 = undefined;
-
-        while (args.next()) |arg| {
-            if (std.mem.eql(u8, arg, "--directory")) {
-                dirname = @constCast(args.next().?);
-            }
-        }
-
-        const filepath = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ dirname, filename });
+        const filepath = try getFilePath(filename);
 
         const file = std.fs.cwd().openFile(filepath, .{}) catch null;
 
@@ -134,4 +147,20 @@ pub fn sendResponse(conn: std.net.Server.Connection, response: Response) !void {
     const res = try std.fmt.allocPrint(std.heap.page_allocator, "{s}\r\n{s}\r\n{s}\r\n", .{ response.status, response.headers, response.body });
 
     _ = try conn.stream.writeAll(res);
+}
+
+pub fn getFilePath(filename: []const u8) ![]u8 {
+    const allocator = std.heap.page_allocator;
+    var dirname: []u8 = undefined;
+
+    var args = try std.process.argsWithAllocator(allocator);
+    defer args.deinit();
+
+    while (args.next()) |arg| {
+        if (std.mem.eql(u8, arg, "directory")) {
+            dirname = @constCast(args.next().?);
+        }
+    }
+
+    return try std.fmt.allocPrint(allocator, "{s}/{s}", .{ dirname, filename });
 }
