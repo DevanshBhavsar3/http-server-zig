@@ -30,7 +30,7 @@ pub fn main() !void {
 
         const word = string.peek().?;
 
-        const response = try std.fmt.allocPrint(std.heap.page_allocator, "HTTP/1.1 202 OK\r\nContent-Type: text/plain\r\nContent-Length: {d}\r\n\r\n{s}", .{ word.len, word });
+        const response = try std.fmt.allocPrint(std.heap.page_allocator, "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: {d}\r\n\r\n{s}", .{ word.len, word });
         try sendResponse(connection, response);
     } else {
         try sendResponse(connection, "HTTP/1.1 404 Not Found\r\n\r\n");
