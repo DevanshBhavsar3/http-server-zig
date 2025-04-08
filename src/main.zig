@@ -38,18 +38,20 @@ pub fn main() !void {
         reponse.status = "HTTP/1.1 200 OK";
         reponse.headers = headers;
         reponse.body = word;
+    } else if (std.mem.eql(u8, parts.peek().?, "/user-agent")) {
+        reponse.status = "HTTP/1.1 200 OK";
+
+        while (parts.peek() != null) {
+            const field = parts.next().?;
+
+            if (std.mem.eql(u8, field, "User-Agent:")) {
+                const userAgent = parts.peek().?;
+                reponse.body = userAgent;
+                reponse.headers = try std.fmt.allocPrint(std.heap.page_allocator, "Content-Type: text/plain\r\nContent-Length: {d}\r\n", .{userAgent.len});
+            }
+        }
     } else {
         reponse.status = "HTTP/1.1 400 Not Found";
-    }
-
-    while (parts.peek() != null) {
-        const field = parts.next().?;
-
-        if (std.mem.eql(u8, field, "User-Agent:")) {
-            const userAgent = parts.peek().?;
-            reponse.body = userAgent;
-            reponse.headers = try std.fmt.allocPrint(std.heap.page_allocator, "Content-Type: text/plain\r\nContent-Length: {d}\r\n", .{userAgent.len});
-        }
     }
 
     try sendResponse(connection, reponse);
