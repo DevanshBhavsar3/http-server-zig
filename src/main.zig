@@ -11,7 +11,19 @@ pub fn main() !void {
     defer listener.deinit();
 
     const connection = try listener.accept();
-    try stdout.print("client connected!", .{});
+    defer connection.stream.close();
 
-    try connection.stream.writeAll("HTTP/1.1 200 OK\r\n\r\n");
+    try stdout.print("client connected!\n", .{});
+
+    var request: [128]u8 = undefined;
+    _ = try connection.stream.read(&request);
+
+    var parts = std.mem.splitAny(u8, &request, " ");
+    _ = parts.next().?;
+
+    if (std.mem.eql(u8, parts.next().?, "/")) {
+        try connection.stream.writeAll("HTTP/1.1 200 OK\r\n\r\n");
+    } else {
+        try connection.stream.writeAll("HTTP/1.1 404 Not Found\r\n\r\n");
+    }
 }
