@@ -157,7 +157,7 @@ pub fn getFilePath(filename: []const u8) ![]u8 {
     defer args.deinit();
 
     while (args.next()) |arg| {
-        if (std.mem.eql(u8, arg, "directory")) {
+        if (std.mem.eql(u8, arg, "--directory")) {
             dirname = @constCast(args.next().?);
         }
     }
