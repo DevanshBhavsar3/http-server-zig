@@ -44,6 +44,8 @@ const Request = struct {
 };
 
 pub fn handleRequest(connection: std.net.Server.Connection) !void {
+    const allocator = std.heap.page_allocator;
+
     defer connection.stream.close();
 
     try stdout.print("client connected!\n", .{});
@@ -63,7 +65,7 @@ pub fn handleRequest(connection: std.net.Server.Connection) !void {
     } else if (std.mem.startsWith(u8, route, "/echo")) {
         const word = route[6..];
 
-        const headers = try std.fmt.allocPrint(std.heap.page_allocator, "Content-Type: text/plain\r\nContent-Length: {d}\r\n", .{word.len});
+        const headers = try std.fmt.allocPrint(allocator, "Content-Type: text/plain\r\nContent-Length: {d}\r\n", .{word.len});
 
         response.status = "HTTP/1.1 200 OK";
         response.headers = headers;
@@ -72,10 +74,23 @@ pub fn handleRequest(connection: std.net.Server.Connection) !void {
         const userAgent = request.getHeader("User-Agent").?;
 
         response.status = "HTTP/1.1 200 OK";
-        response.headers = try std.fmt.allocPrint(std.heap.page_allocator, "Content-Type: text/plain\r\nContent-Length: {d}\r\n", .{userAgent.len});
+        response.headers = try std.fmt.allocPrint(allocator, "Content-Type: text/plain\r\nContent-Length: {d}\r\n", .{userAgent.len});
         response.body = userAgent;
     } else if (std.mem.startsWith(u8, route, "/files")) {
-        const filepath = route[6..];
+        const filename = route[7..];
+
+        var args = try std.process.argsWithAllocator(allocator);
+        defer args.deinit();
+
+        var dirname: []u8 = undefined;
+
+        while (args.next()) |arg| {
+            if (std.mem.eql(u8, arg, "--directory")) {
+                dirname = @constCast(args.next().?);
+            }
+        }
+
+        const filepath = try std.fmt.allocPrint(allocator, "{s}/{s}", .{ dirname, filename });
 
         const file = std.fs.cwd().openFile(filepath, .{}) catch null;
 
@@ -85,7 +100,7 @@ pub fn handleRequest(connection: std.net.Server.Connection) !void {
             var fileContent: [1024]u8 = undefined;
             const fileSize = try f.read(&fileContent);
 
-            const headers = try std.fmt.allocPrint(std.heap.page_allocator, "Content-Type: application/octet-stream\r\nContent-Length: {d}\r\n", .{fileSize});
+            const headers = try std.fmt.allocPrint(allocator, "Content-Type: application/octet-stream\r\nContent-Length: {d}\r\n", .{fileSize});
 
             response.status = "HTTP/1.1 200 OK";
             response.headers = headers;
