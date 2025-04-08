@@ -51,7 +51,7 @@ pub fn main() !void {
             }
         }
     } else {
-        reponse.status = "HTTP/1.1 400 Not Found";
+        reponse.status = "HTTP/1.1 404 Not Found";
     }
 
     try sendResponse(connection, reponse);
