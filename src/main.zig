@@ -21,9 +21,22 @@ pub fn main() !void {
     var parts = std.mem.splitAny(u8, &request, " ");
     _ = parts.next().?;
 
-    if (std.mem.eql(u8, parts.next().?, "/")) {
-        try connection.stream.writeAll("HTTP/1.1 200 OK\r\n\r\n");
+    if (std.mem.eql(u8, parts.peek().?, "/")) {
+        try sendResponse(connection, "HTTP/1.1 200 OK\r\n\r\n");
+    } else if (std.mem.startsWith(u8, parts.peek().?, "/echo")) {
+        var string = std.mem.splitAny(u8, parts.next().?, "/");
+        _ = string.next().?;
+        _ = string.next().?;
+
+        const word = string.peek().?;
+
+        const response = try std.fmt.allocPrint(std.heap.page_allocator, "HTTP/1.1 202 OK\r\nContent-Type: text/plain\r\nContent-Length: {d}\r\n\r\n{s}", .{ word.len, word });
+        try sendResponse(connection, response);
     } else {
-        try connection.stream.writeAll("HTTP/1.1 404 Not Found\r\n\r\n");
+        try sendResponse(connection, "HTTP/1.1 404 Not Found\r\n\r\n");
     }
+}
+
+pub fn sendResponse(conn: std.net.Server.Connection, response: []const u8) !void {
+    _ = try conn.stream.writeAll(response);
 }
