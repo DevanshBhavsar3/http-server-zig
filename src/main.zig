@@ -54,31 +54,50 @@ pub fn handleRequest(connection: std.net.Server.Connection) !void {
     var request = Request{};
     try request.parse(&requestData);
 
-    var reponse = Response{ .status = "", .headers = "", .body = "" };
+    var response = Response{ .status = "", .headers = "", .body = "" };
 
     const route = request.getRoute();
 
     if (std.mem.eql(u8, route, "/")) {
-        reponse.status = "HTTP/1.1 200 OK";
+        response.status = "HTTP/1.1 200 OK";
     } else if (std.mem.startsWith(u8, route, "/echo")) {
         const word = route[6..];
 
         const headers = try std.fmt.allocPrint(std.heap.page_allocator, "Content-Type: text/plain\r\nContent-Length: {d}\r\n", .{word.len});
 
-        reponse.status = "HTTP/1.1 200 OK";
-        reponse.headers = headers;
-        reponse.body = word;
+        response.status = "HTTP/1.1 200 OK";
+        response.headers = headers;
+        response.body = word;
     } else if (std.mem.eql(u8, route, "/user-agent")) {
         const userAgent = request.getHeader("User-Agent").?;
 
-        reponse.status = "HTTP/1.1 200 OK";
-        reponse.headers = try std.fmt.allocPrint(std.heap.page_allocator, "Content-Type: text/plain\r\nContent-Length: {d}\r\n", .{userAgent.len});
-        reponse.body = userAgent;
+        response.status = "HTTP/1.1 200 OK";
+        response.headers = try std.fmt.allocPrint(std.heap.page_allocator, "Content-Type: text/plain\r\nContent-Length: {d}\r\n", .{userAgent.len});
+        response.body = userAgent;
+    } else if (std.mem.startsWith(u8, route, "/files")) {
+        const filepath = route[7..];
+
+        const file = std.fs.cwd().openFile(filepath, .{}) catch null;
+
+        if (file) |f| {
+            defer f.close();
+
+            var fileContent: [1024]u8 = undefined;
+            const fileSize = try f.read(&fileContent);
+
+            const headers = try std.fmt.allocPrint(std.heap.page_allocator, "Content-Type: application/octet-stream\r\nContent-Length: {d}\r\n", .{fileSize});
+
+            response.status = "HTTP/1.1 200 OK";
+            response.headers = headers;
+            response.body = &fileContent;
+        } else {
+            response.status = "HTTP/1.1 404 Not Found";
+        }
     } else {
-        reponse.status = "HTTP/1.1 404 Not Found";
+        response.status = "HTTP/1.1 404 Not Found";
     }
 
-    try sendResponse(connection, reponse);
+    try sendResponse(connection, response);
 }
 
 pub fn main() !void {
@@ -98,8 +117,6 @@ pub fn main() !void {
 
 pub fn sendResponse(conn: std.net.Server.Connection, response: Response) !void {
     const res = try std.fmt.allocPrint(std.heap.page_allocator, "{s}\r\n{s}\r\n{s}\r\n", .{ response.status, response.headers, response.body });
-
-    std.debug.print("{s}", .{res});
 
     _ = try conn.stream.writeAll(res);
 }
