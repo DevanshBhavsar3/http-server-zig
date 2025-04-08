@@ -75,7 +75,7 @@ pub fn handleRequest(connection: std.net.Server.Connection) !void {
         response.headers = try std.fmt.allocPrint(std.heap.page_allocator, "Content-Type: text/plain\r\nContent-Length: {d}\r\n", .{userAgent.len});
         response.body = userAgent;
     } else if (std.mem.startsWith(u8, route, "/files")) {
-        const filepath = route[7..];
+        const filepath = route[6..];
 
         const file = std.fs.cwd().openFile(filepath, .{}) catch null;
 
