@@ -1,18 +1,11 @@
 const std = @import("std");
 const net = std.net;
+const thread = std.Thread;
+const stdout = std.io.getStdOut().writer();
 
 const Response = struct { status: []const u8, headers: []const u8, body: []const u8 };
 
-pub fn main() !void {
-    const stdout = std.io.getStdOut().writer();
-
-    const address = try net.Address.resolveIp("127.0.0.1", 4221);
-    var listener = try address.listen(.{
-        .reuse_address = true,
-    });
-    defer listener.deinit();
-
-    const connection = try listener.accept();
+pub fn handleRequest(connection: std.net.Server.Connection) !void {
     defer connection.stream.close();
 
     try stdout.print("client connected!\n", .{});
@@ -54,7 +47,24 @@ pub fn main() !void {
         reponse.status = "HTTP/1.1 404 Not Found";
     }
 
+    std.debug.print("Here", .{});
+
     try sendResponse(connection, reponse);
+}
+
+pub fn main() !void {
+    while (true) {
+        const address = try net.Address.resolveIp("127.0.0.1", 4221);
+        var listener = try address.listen(.{
+            .reuse_address = true,
+        });
+        defer listener.deinit();
+
+        const connection = try listener.accept();
+
+        const newThread = try thread.spawn(.{}, handleRequest, .{connection});
+        newThread.detach();
+    }
 }
 
 pub fn sendResponse(conn: std.net.Server.Connection, response: Response) !void {
