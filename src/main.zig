@@ -92,24 +92,25 @@ pub fn handleRequest(connection: std.net.Server.Connection) !void {
 
         const acceptEncodings = request.getHeader("Accept-Encoding");
 
-        var compressedBody = std.ArrayList(u8).init(allocator);
-        defer compressedBody.deinit();
-
-        var fbs = std.io.fixedBufferStream(word);
-
-        try std.compress.gzip.compress(fbs.reader(), compressedBody.writer(), .{});
-
-        var headers: []u8 = undefined;
-
         if (acceptEncodings != null and std.mem.containsAtLeast(u8, acceptEncodings.?, 1, "gzip")) {
-            headers = try std.fmt.allocPrint(allocator, "Content-Type: text/plain\r\nContent-Length: {d}\r\nContent-Encoding: gzip\r\n", .{compressedBody.items.len});
+            var compressedBody = std.ArrayList(u8).init(allocator);
+
+            var fbs = std.io.fixedBufferStream(word);
+
+            try std.compress.gzip.compress(fbs.reader(), compressedBody.writer(), .{});
+
+            const headers = try std.fmt.allocPrint(allocator, "Content-Encoding: gzip\r\nContent-Type: text/plain\r\nContent-Length: {d}\r\n", .{compressedBody.items.len});
+
+            response.headers = headers;
+            response.body = compressedBody.items;
         } else {
-            headers = try std.fmt.allocPrint(allocator, "Content-Type: text/plain\r\nContent-Length: {d}\r\n", .{word.len});
+            const headers = try std.fmt.allocPrint(allocator, "Content-Type: text/plain\r\nContent-Length: {d}\r\n", .{word.len});
+
+            response.headers = headers;
+            response.body = word;
         }
 
         response.status = "HTTP/1.1 200 OK";
-        response.headers = headers;
-        response.body = compressedBody.items;
     } else if (std.mem.eql(u8, route, "/user-agent")) {
         const userAgent = request.getHeader("User-Agent").?;
 
