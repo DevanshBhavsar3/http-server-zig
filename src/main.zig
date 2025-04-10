@@ -90,11 +90,11 @@ pub fn handleRequest(connection: std.net.Server.Connection) !void {
     } else if (std.mem.startsWith(u8, route, "/echo")) {
         const word = route[6..];
 
-        const acceptEncoding = request.getHeader("Accept-Encoding");
+        const acceptEncodings = request.getHeader("Accept-Encoding");
 
         var headers: []u8 = undefined;
 
-        if (acceptEncoding != null and std.mem.eql(u8, acceptEncoding.?, "gzip")) {
+        if (acceptEncodings != null and std.mem.containsAtLeast(u8, acceptEncodings.?, 1, "gzip")) {
             headers = try std.fmt.allocPrint(allocator, "Content-Type: text/plain\r\nContent-Length: {d}\r\nContent-Encoding: gzip\r\n", .{word.len});
         } else {
             headers = try std.fmt.allocPrint(allocator, "Content-Type: text/plain\r\nContent-Length: {d}\r\n", .{word.len});
